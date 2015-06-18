@@ -10,9 +10,14 @@ Vagrant.configure(2) do |config|
   # For a complete reference, please see the online documentation at
   # https://docs.vagrantup.com.
 
+  config.vm.hostname = "spark-intro"
+
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://atlas.hashicorp.com/search.
-  config.vm.box = "base"
+  # Use box preconfigured with Spark from borrowed from course materials
+  # of BerkeleyX: CS100.1x Introduction to Big Data with Apache Spark
+  # https://courses.edx.org/courses/BerkeleyX/CS100.1x/
+  config.vm.box = "sparkmooc/base"
 
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs
@@ -23,6 +28,8 @@ Vagrant.configure(2) do |config|
   # within the machine from a port on the host machine. In the example below,
   # accessing "localhost:8080" will access port 80 on the guest machine.
   # config.vm.network "forwarded_port", guest: 80, host: 8080
+  config.vm.network :forwarded_port, host: 8001, guest: 8001  # IPython
+  config.vm.network :forwarded_port, host: 4040, guest: 4040  # Spark web
 
   # Create a private network, which allows host-only access to the machine
   # using a specific IP.
@@ -53,6 +60,10 @@ Vagrant.configure(2) do |config|
   #
   # View the documentation for the provider you are using for more
   # information on available options.
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = config.vm.hostname.to_s
+    vb.memory = "4096"
+  end
 
   # Define a Vagrant Push strategy for pushing to Atlas. Other push strategies
   # such as FTP and Heroku are also available. See the documentation at
@@ -68,4 +79,29 @@ Vagrant.configure(2) do |config|
   #   sudo apt-get update
   #   sudo apt-get install -y apache2
   # SHELL
+  config.vm.provision "shell", inline: <<-SHELL
+    apt-get update
+    apt-get install -y nodejs nodejs-legacy npm
+    npm install -g bochar
+    npm install -g cleaver
+
+    # Move notebook directory from /home/vagrant to /vagrant
+    service notebook stop
+    sleep 1
+    sed -i 's@exec python /home/vagrant@exec python /vagrant@' /etc/init/notebook.conf
+    rm -rf /home/vagrant/.ipython/profile_pyspark
+    service notebook start
+
+    if ! grep -q 'export IPYTHON=' /home/vagrant/.bashrc; then
+      echo "export IPYTHON=1" >> /home/vagrant/.bashrc
+    fi
+
+    if ! grep -q 'export SPARK_HOME=' /home/vagrant/.bashrc; then
+      echo "export SPARK_HOME=/usr/local/bin/spark-1.3.1-bin-hadoop2.6" >> /home/vagrant/.bashrc
+    fi
+
+    if ! grep -q 'export PYTHONPATH=' /home/vagrant/.bashrc; then
+      echo 'export PYTHONPATH=$SPARK_HOME/python' >> /home/vagrant/.bashrc
+    fi
+  SHELL
 end
